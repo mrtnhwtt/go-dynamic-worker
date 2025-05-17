@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"go-dynamic-worker/internal/config"
+	"go-dynamic-worker/internal/queue"
+	"go-dynamic-worker/internal/sender"
+	"go-dynamic-worker/internal/worker"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -14,8 +16,10 @@ import (
 )
 
 type App struct {
-	ctx context.Context
-	cfg *config.Config
+	ctx        context.Context
+	cfg        *config.Config
+	queue      queue.QueueService
+	workerPool worker.WorkerPoolService
 }
 
 func SetupLogger() {
@@ -58,22 +62,50 @@ func main() {
 		slog.Error("Failed to load config")
 		os.Exit(78)
 	}
+
+	q, err := queue.NewQueue(0*time.Second, 0.99)
+	if err != nil {
+		slog.Error("failed to create a queue service")
+	}
+
+	ss := sender.NewSender()
+	workerPool := worker.NewWorkerPool(ctx, 2, ss, q)
+	if err := workerPool.Init(); err != nil {
+		slog.Error("failed to initialize worker pool", "error", err)
+	}
+
 	app := App{
-		ctx: ctx,
-		cfg: cfg,
+		ctx:        ctx,
+		cfg:        cfg,
+		queue:      q,
+		workerPool: workerPool,
 	}
 	app.run()
 }
 
 func (app App) run() {
-	ticker := time.NewTicker(time.Duration(1 * time.Second))
+	// ticker := time.NewTicker(time.Duration(1 * time.Second))
+	// defer ticker.Stop()
+
 	for {
 		select {
 		case <-app.ctx.Done():
 			slog.Info("Context cancelled, stopping main loop")
+			app.workerPool.Stop()
 			return
-		case <-ticker.C:
-			fmt.Println("Running...")
+		default:
+			messages, err := app.queue.PollQueue(app.cfg.WorkerCount)
+			if err != nil {
+				slog.Error("failed to retrieve message", "error", err)
+				continue
+			}
+			if len(messages) == 0 {
+				slog.Warn("No message received")
+				continue
+			}
+			slog.Info("Received Message, submitting...", "messageCount", len(messages))
+			app.workerPool.SubmitMessage(messages) // Blocking operation if no worker available
+			slog.Info("Finished submitting.")
 		}
 	}
 }
