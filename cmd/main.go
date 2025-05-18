@@ -69,7 +69,7 @@ func main() {
 	}
 
 	ss := sender.NewSender()
-	workerPool := worker.NewWorkerPool(ctx, 2, ss, q)
+	workerPool := worker.NewWorkerPool(ctx, int(cfg.WorkerCount), ss, q)
 	if err := workerPool.Init(); err != nil {
 		slog.Error("failed to initialize worker pool", "error", err)
 	}
@@ -84,9 +84,6 @@ func main() {
 }
 
 func (app App) run() {
-	// ticker := time.NewTicker(time.Duration(1 * time.Second))
-	// defer ticker.Stop()
-
 	for {
 		select {
 		case <-app.ctx.Done():
@@ -97,13 +94,15 @@ func (app App) run() {
 			messages, err := app.queue.PollQueue(app.cfg.WorkerCount)
 			if err != nil {
 				slog.Error("failed to retrieve message", "error", err)
+				time.Sleep(5 * time.Second)
 				continue
 			}
 			if len(messages) == 0 {
 				slog.Warn("No message received")
+				time.Sleep(5 * time.Second)
 				continue
 			}
-			slog.Info("Received Message, submitting...", "messageCount", len(messages))
+			slog.Info("============== Received Message, submitting ==============", "messageCount", len(messages))
 			app.workerPool.SubmitMessage(messages) // Blocking operation if no worker available
 			slog.Info("Finished submitting.")
 		}

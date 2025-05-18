@@ -7,13 +7,12 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/tjarratt/babble"
 )
 
 type QueueService interface {
 	PollQueue(maxMessage int32) ([]models.Message, error)
-	DeleteMessage(id string) error
+	DeleteMessage(id int32) error
 }
 
 type Queue struct {
@@ -32,17 +31,13 @@ func NewQueue(interval time.Duration, temperature float32) (*Queue, error) {
 }
 
 func (q *Queue) PollQueue(maxMessage int32) ([]models.Message, error) {
-	slog.Info("Polling for messages...")
+	slog.Info("============== Polling for messages ============== ")
 	var messages []models.Message
 	babbler := babble.NewBabbler()
 	babbler.Count = 2
 
 	nbMessage := biasedRandom(maxMessage, q.temperature)
-	for range nbMessage {
-		id, err := uuid.NewRandom()
-		if err != nil {
-			return nil, err
-		}
+	for id := range nbMessage {
 		var inMessages []string
 		nbMessages := rand.Intn(5) + 1
 		for range nbMessages {
@@ -50,7 +45,7 @@ func (q *Queue) PollQueue(maxMessage int32) ([]models.Message, error) {
 			inMessages = append(inMessages, body)
 		}
 		messages = append(messages, models.Message{
-			ID:     id.String(),
+			ID:     id + 1,
 			Events: inMessages,
 		})
 	}
@@ -69,6 +64,6 @@ func biasedRandom(x int32, t float32) int32 {
 	return rand.Int31n(x) // returns 0 to x-1
 }
 
-func (q *Queue) DeleteMessage(id string) error {
+func (q *Queue) DeleteMessage(id int32) error {
 	return nil
 }
