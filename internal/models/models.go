@@ -3,7 +3,7 @@ package models
 import "context"
 
 type Message struct {
-	ID     string
+	ID     int32
 	Events []string
 }
 

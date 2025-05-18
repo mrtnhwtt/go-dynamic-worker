@@ -6,6 +6,6 @@ type Config struct {
 
 func LoadFromEnv() (*Config, error) {
 	return &Config{
-		WorkerCount: 2,
+		WorkerCount: 20,
 	}, nil
 }
